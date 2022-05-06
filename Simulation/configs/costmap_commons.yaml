@@ -1,0 +1,30 @@
+global_frame: map
+robot_base_frame: base_footprint
+
+footprint: [[-0.5, -0.30], [-0.5, 0.30], [0.5, 0.30], [0.5, -0.30]]
+footprint_padding: 0.01
+
+obstacle_range: 5.5
+raytrace_range: 6.0
+
+inflater_layer:
+  enabled: true
+  inflate_unknow: true
+  inflation_radius: 0.40
+  cost_scaling_factor: 0.5
+  layer: combined_layer
+
+obstacles_layer:
+  enabled: true
+  observation_sources: laser_scan_sensor camera_sensor
+  laser_scan_sensor: {data_type: LaserScan, topic: scan, clearing: true, marking: true}
+  camera_sensor: {data_type: PointCloud2, topic: realsense, clearing: true, marking: true, min_obstacle_height: 0.3, max_obstacle_height: 1.5}
+  # max_obstacle_height: 3
+  obstacle_range: 5.5
+  raytrace_range: 6.0
+  combination_method: 1
+
+plugins:
+- {name: obstacles_layer, type: "costmap_2d::ObstacleLayer"}
+- {name: inflater_layer, type: "costmap_2d::InflationLayer"}
+# - {name: voxel_layer, type: "spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer"}

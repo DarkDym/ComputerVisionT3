@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<package format="2">
+    <name>computer_vision_t3</name>
+    <version>1.0.0</version>
+    <description>Computer Vision Final Work Package</description>
+    <maintainer email="alleffdymytry@gmail.com">Alleff Dymytry</maintainer>
+    <license>TODO</license>
+    <buildtool_depend>catkin</buildtool_depend>
+
+    <depend>gazebo_ros</depend>
+    <depend>gazebo_ros_control</depend>
+    <depend>controller_manager</depend>
+    <depend>velocity_controller</depend>
+
+    <export>
+        <gazebo_ros gazebo_model_path="${prefix}/models/"/>
+    </export>
+</package>

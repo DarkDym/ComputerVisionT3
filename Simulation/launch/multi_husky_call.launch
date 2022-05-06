@@ -1,0 +1,54 @@
+<?xml version="1.0"?>
+<launch>
+
+    <arg name="world_path" default="$(find computer_vision_t3)/worlds"/>
+    <arg name="world_name" default="empty_world"/>
+    <arg name="navigating" default="true"/>
+    <arg name="run_rviz" default="true"/>
+    <arg name="laser_enabled" default="$(optenv HUSKY_LMS1XX_ENABLED true)"/>
+    <arg name="realsense_enabled" default="$(optenv HUSKY_REALSENSE_ENABLED false)"/>
+    <arg name="urdf_extras" default="$(optenv HUSKY_URDF_EXTRAS)"/>
+
+    <include file="$(find computer_vision_t3)/launch/simulation.launch">
+        <arg name="world_path" value="$(arg world_path)/$(arg world_name).world"/>
+        <arg name="run_rviz" value="$(arg run_rviz)"/>
+        <arg name="verbose" value="true"/>
+        <arg name="navigating" value="$(arg navigating)"/>
+    </include>
+
+    <arg name="robot1_name" value="husky1"/>
+    <group ns="$(arg robot1_name)">
+        <param name="tf_prefix" value="$(arg robot1_name)_tf"/>
+        <param name="/$(arg robot1_name)/map_merge/init_pose_x" value="0.00"/>
+        <param name="/$(arg robot1_name)/map_merge/init_pose_y" value="0.00"/>
+        <param name="/$(arg robot1_name)/map_merge/init_pose_z" value="0.00"/>
+        <param name="/$(arg robot1_name)/map_merge/init_pose_yaw" value="0.00"/>
+        <include file="$(find computer_vision_t3)/launch/husky_bringup.launch">
+            <arg name="model" value="$(arg robot1_name)"/>
+            <arg name="init_pose" value="-x 0.00 -y 0.00 -Y 0.0"/>
+            <arg name="ipx" value="-7.00"/>
+            <arg name="ipy" value="0.00"/>
+            <arg name="navigating" value="$(arg navigating)"/>
+            <arg name="id_cont" value="0"/>
+        </include>
+    </group>
+
+    <arg name="robot2_name" value="husky2"/>
+    <group ns="$(arg robot2_name)">
+        <param name="tf_prefix" value="$(arg robot2_name)_tf"/>    
+        <param name="/$(arg robot2_name)/map_merge/init_pose_x" value="20.00"/>
+        <param name="/$(arg robot2_name)/map_merge/init_pose_y" value="-15.00"/>
+        <param name="/$(arg robot2_name)/map_merge/init_pose_z" value="0.00"/>
+        <param name="/$(arg robot2_name)/map_merge/init_pose_yaw" value="0.00"/>
+        <include file="$(find computer_vision_t3)/launch/husky_bringup.launch">
+            <arg name="model" value="$(arg robot2_name)"/>
+            <arg name="init_pose" value="-x 20.00 -y -15.00 -Y 0.0"/>
+            <arg name="ipx" value="7.00"/>
+            <arg name="ipy" value="0.00"/>
+            <arg name="navigating" value="$(arg navigating)"/>
+            <arg name="id_cont" value="1"/>
+        </include>
+    </group>
+    
+
+</launch>

@@ -1,0 +1,74 @@
+<?xml version="1.0"?>
+
+<launch>
+
+    <arg name="model" default="husky"/>
+    <arg name="init_pose" default="-x 0.00 -y 0.00 -Y 0.0"/>
+    <arg name="laser_enabled" default="$(optenv HUSKY_LMS1XX_ENABLED true)"/>
+    <arg name="realsense_enabled" default="$(optenv HUSKY_REALSENSE_ENABLED true)"/>
+    <arg name="urdf_extras" default="$(optenv HUSKY_URDF_EXTRAS)"/>
+    <arg name="ipx" default="0.00"/>
+    <arg name="ipy" default="0.00"/>
+    <arg name="navigating" default="true"/>
+    <arg name="id_cont" default="0"/>
+
+    <param name="robot_description" command="$(find xacro)/xacro $(find dissertation_simulation)/xacro/husky.urdf.xacro robot_namespace:=$(arg model) tf_prefix:=$(arg model)_tf id_cont:=$(arg id_cont) laser_enabled:=$(arg laser_enabled) realsense_enabled:=$(arg realsense_enabled) urdf_extras:=$(arg urdf_extras)"/>
+    <node pkg="gazebo_ros" type="spawn_model" name="spawn_model" args="-urdf -param /$(arg model)/robot_description -model $(arg model) $(arg init_pose)" output="screen"/>
+
+
+    <rosparam file="$(find dissertation_simulation)/config/control.yaml" command="load"/>
+    <rosparam param="husky_velocity_controller/base_frame_id" subst_value="True">$(arg model)_tf/base_footprint</rosparam>
+
+    <node pkg="controller_manager" type="spawner" name="controller_spawner" respawn="true" output="screen" args="husky_joint_publisher husky_velocity_controller">
+        <param name="base_frame_id" value="base_footprint"/>
+    </node>
+
+    <rosparam param="wheel_radius_multiplier" ns="husky_velocity_controller" subst_value="True">
+        $(optenv HUSKY_WHEEL_MULTIPLIER 1.0)
+    </rosparam>
+
+    <node pkg="robot_localization" type="ekf_localization_node" name="ekf_localization" output="screen">
+        <rosparam command="load" file="$(find dissertation_simulation)/config/localization.yaml"/>
+        <param name="base_link_frame" value="base_footprint"/>
+    </node>
+    
+      <node pkg="interactive_marker_twist_server" type="marker_server" name="twist_marker_server" output="screen">
+        <param name="link_name" value="base_footprint" />
+      </node>
+    
+      <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" output="screen">
+        <param name="tf_prefix" value="$(arg model)_tf"/>
+      </node>
+    
+      <node pkg="twist_mux" type="twist_mux" name="twist_mux" output="screen">
+        <rosparam command="load" file="$(find husky_control)/config/twist_mux.yaml" />
+        <remap from="cmd_vel_out" to="husky_velocity_controller/cmd_vel"/>
+      </node>
+    
+    <include file="$(find dissertation_simulation)/launch/gmapping.launch" unless="$(arg navigating)">
+      <arg name="model" value="$(arg model)"/>
+    </include>
+
+    <node pkg="tf" type="static_transform_publisher" name="map_model_broadcaster" args="0 0 0 0 0 0 /map /$(arg model)_tf/map 100"/>
+
+    <include file="$(find dissertation_simulation)/launch/move_base.launch" >
+        <arg name="model" value="$(arg model)"/>
+        <arg name="navigating" value="$(arg navigating)"/>
+        <arg name="no_static_map" value="true" unless="$(arg navigating)"/>
+    </include>
+
+    <include file="$(find dissertation_simulation)/launch/amcl.launch" if="$(arg navigating)">
+        <arg name="model" value="$(arg model)"/>
+        <arg name="ipx" value="$(arg ipx)"/>
+        <arg name="ipy" value="$(arg ipy)"/>
+    </include>
+
+    <include file="$(find dissertation_simulation)/launch/explore.launch" unless="$(arg navigating)">
+      <arg name="model" value="$(arg model)"/>
+    </include>
+
+    <include file="$(find dissertation_simulation)/launch/continuous_detection.launch">
+      <arg name="model" value="$(arg model)"/>
+    </include>
+
+</launch>
