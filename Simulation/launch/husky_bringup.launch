@@ -12,11 +12,11 @@
     <arg name="navigating" default="true"/>
     <arg name="id_cont" default="0"/>
 
-    <param name="robot_description" command="$(find xacro)/xacro $(find dissertation_simulation)/xacro/husky.urdf.xacro robot_namespace:=$(arg model) tf_prefix:=$(arg model)_tf id_cont:=$(arg id_cont) laser_enabled:=$(arg laser_enabled) realsense_enabled:=$(arg realsense_enabled) urdf_extras:=$(arg urdf_extras)"/>
+    <param name="robot_description" command="$(find xacro)/xacro $(find computer_vision_t3)/xacro/husky.urdf.xacro robot_namespace:=$(arg model) tf_prefix:=$(arg model)_tf id_cont:=$(arg id_cont) laser_enabled:=$(arg laser_enabled) realsense_enabled:=$(arg realsense_enabled) urdf_extras:=$(arg urdf_extras)"/>
     <node pkg="gazebo_ros" type="spawn_model" name="spawn_model" args="-urdf -param /$(arg model)/robot_description -model $(arg model) $(arg init_pose)" output="screen"/>
 
 
-    <rosparam file="$(find dissertation_simulation)/config/control.yaml" command="load"/>
+    <rosparam file="$(find computer_vision_t3)/config/control.yaml" command="load"/>
     <rosparam param="husky_velocity_controller/base_frame_id" subst_value="True">$(arg model)_tf/base_footprint</rosparam>
 
     <node pkg="controller_manager" type="spawner" name="controller_spawner" respawn="true" output="screen" args="husky_joint_publisher husky_velocity_controller">
@@ -28,7 +28,7 @@
     </rosparam>
 
     <node pkg="robot_localization" type="ekf_localization_node" name="ekf_localization" output="screen">
-        <rosparam command="load" file="$(find dissertation_simulation)/config/localization.yaml"/>
+        <rosparam command="load" file="$(find computer_vision_t3)/config/localization.yaml"/>
         <param name="base_link_frame" value="base_footprint"/>
     </node>
     
@@ -45,29 +45,29 @@
         <remap from="cmd_vel_out" to="husky_velocity_controller/cmd_vel"/>
       </node>
     
-    <include file="$(find dissertation_simulation)/launch/gmapping.launch" unless="$(arg navigating)">
+    <include file="$(find computer_vision_t3)/launch/gmapping.launch" unless="$(arg navigating)">
       <arg name="model" value="$(arg model)"/>
     </include>
 
     <node pkg="tf" type="static_transform_publisher" name="map_model_broadcaster" args="0 0 0 0 0 0 /map /$(arg model)_tf/map 100"/>
 
-    <include file="$(find dissertation_simulation)/launch/move_base.launch" >
+    <include file="$(find computer_vision_t3)/launch/move_base.launch" >
         <arg name="model" value="$(arg model)"/>
         <arg name="navigating" value="$(arg navigating)"/>
         <arg name="no_static_map" value="true" unless="$(arg navigating)"/>
     </include>
 
-    <include file="$(find dissertation_simulation)/launch/amcl.launch" if="$(arg navigating)">
+    <include file="$(find computer_vision_t3)/launch/amcl.launch" if="$(arg navigating)">
         <arg name="model" value="$(arg model)"/>
         <arg name="ipx" value="$(arg ipx)"/>
         <arg name="ipy" value="$(arg ipy)"/>
     </include>
 
-    <include file="$(find dissertation_simulation)/launch/explore.launch" unless="$(arg navigating)">
+    <include file="$(find computer_vision_t3)/launch/explore.launch" unless="$(arg navigating)">
       <arg name="model" value="$(arg model)"/>
     </include>
 
-    <include file="$(find dissertation_simulation)/launch/continuous_detection.launch">
+    <include file="$(find computer_vision_t3)/launch/continuous_detection.launch">
       <arg name="model" value="$(arg model)"/>
     </include>
 

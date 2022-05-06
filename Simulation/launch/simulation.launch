@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <launch>
     
-    <arg name="world_path" default="$(find dissertation_simulation)/worlds/tecnopucSim.world"/>
+    <arg name="world_path" default="$(find computer_vision_t3)/worlds/tecnopucSim.world"/>
     <arg name="run_rviz" default="true"/>
     <arg name="debug" default="false"/>
     <arg name="gui" default="true"/>
@@ -12,10 +12,10 @@
     <arg name="extra_gazebo_args" default=""/>
     <arg name="navigating" default="true"/>
 
-    <node if="$(arg run_rviz)" name="rviz" pkg="rviz" type="rviz" args="-d $(find dissertation_simulation)/config/husky.rviz" required="true"/>
+    <node if="$(arg run_rviz)" name="rviz" pkg="rviz" type="rviz" args="-d $(find computer_vision_t3)/config/husky.rviz" required="true"/>
 
     <group if="$(arg navigating)">
-        <node pkg="map_server" type="map_server" name="map_server" args="$(find dissertation_simulation)/worlds/warehouse_cells_joystick.yaml"/>    
+        <node pkg="map_server" type="map_server" name="map_server" args="$(find computer_vision_t3)/worlds/warehouse_cells_joystick.yaml"/>    
     </group>
 
     <group>

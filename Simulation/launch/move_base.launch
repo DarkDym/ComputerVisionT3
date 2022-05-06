@@ -16,10 +16,10 @@
     <param name="base_global_planner" value="$(arg base_global_planner)"/>
     <param name="base_local_planner" value="$(arg base_local_planner)"/>
      
-    <rosparam file="$(find dissertation_simulation)/config/planner.yaml" command="load"/>
+    <rosparam file="$(find computer_vision_t3)/config/planner.yaml" command="load"/>
 
     <!-- observation sources located in costmap_common.yaml -->
-    <rosparam file="$(find dissertation_simulation)/config/costmap_commons.yaml" command="load" ns="global_costmap"/>
+    <rosparam file="$(find computer_vision_t3)/config/costmap_commons.yaml" command="load" ns="global_costmap"/>
       <param name="global_costmap/robot_base_frame" value="$(arg model)_tf/base_footprint"/>
       <!-- <remap from="realsense/depth/color/points" to="realsense/depth/color/points"/> -->
       <!-- <param name="global_costmap/obstacles_camera/camera_mark/topic" value="realsense/depth/color/points"/> -->
@@ -28,7 +28,7 @@
       
     <!-- </rosparam> -->
 
-    <rosparam file="$(find dissertation_simulation)/config/costmap_commons.yaml" command="load" ns="local_costmap"/>
+    <rosparam file="$(find computer_vision_t3)/config/costmap_commons.yaml" command="load" ns="local_costmap"/>
       <param name="local_costmap/robot_base_frame" value="$(arg model)_tf/base_footprint"/>
       <param name="local_costmap/obstacles_layer/laser_scan_sensor/topic" value="/$(arg model)/scan"/>
       <param name="global_costmap/obstacles_layer/laser_scan_sensor/topic" value="/$(arg model)/scan"/>
@@ -42,7 +42,7 @@
     <!-- </rosparam> -->
 
     <!-- local costmap, needs size -->
-    <rosparam file="$(find dissertation_simulation)/config/local_costmap.yaml" command="load" ns="local_costmap"/>
+    <rosparam file="$(find computer_vision_t3)/config/local_costmap.yaml" command="load" ns="local_costmap"/>
       <!-- <param name="local_costmap/width" value="15.0"/> -->
       <!-- <rosparam param="local_costmap/width" subst_value="true">30.0</rosparam> -->
       <!-- <param name="local_costmap/height" value="15.0"/> -->
@@ -53,14 +53,14 @@
     <!-- </rosparam> -->
 
     <!-- static global costmap, static map provides size -->
-    <rosparam file="$(find dissertation_simulation)/config/global_costmap.yaml" command="load" ns="global_costmap" unless="$(arg no_static_map)"/>
+    <rosparam file="$(find computer_vision_t3)/config/global_costmap.yaml" command="load" ns="global_costmap" unless="$(arg no_static_map)"/>
       <!-- <param name="global_costmap/global_frame" value="$(arg model)_tf/map"/> -->
       <rosparam param="global_costmap/global_frame" subst_value="true">$(arg model)_tf/map</rosparam>
       <!-- <param name="global_costmap/robot_base_frame" value="$(arg model)_tf/base_link"/> -->
     <!-- </rosparam> -->
     
     <!-- global costmap with laser, for odom_navigation_demo -->
-    <rosparam file="$(find dissertation_simulation)/config/global_costmap.yaml" command="load" ns="global_costmap" if="$(arg no_static_map)"/>
+    <rosparam file="$(find computer_vision_t3)/config/global_costmap.yaml" command="load" ns="global_costmap" if="$(arg no_static_map)"/>
       <param name="global_costmap/width" value="100.0" if="$(arg no_static_map)"/>
       <param name="global_costmap/height" value="100.0" if="$(arg no_static_map)"/>
       <!-- <rosparam param="global_costmap/global_frame" subst_value="True">$(arg model)_tf/odom</rosparam> -->

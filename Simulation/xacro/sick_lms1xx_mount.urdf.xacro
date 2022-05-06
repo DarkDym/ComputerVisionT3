@@ -27,7 +27,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 <robot xmlns:xacro="http://ros.org/wiki/xacro">
 
-  <xacro:include filename="$(find dissertation_simulation)/xacro/sick_lms1xx.urdf.xacro" />
+  <xacro:include filename="$(find computer_vision_t3)/xacro/sick_lms1xx.urdf.xacro" />
 
   <xacro:macro name="sick_lms1xx_mount" params="prefix">
 
