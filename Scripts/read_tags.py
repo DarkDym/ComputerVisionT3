@@ -63,7 +63,7 @@ class TagRead:
             self.alredy_detect = False
             self.first_frame = None
             self.stopped = False
-    
+    #TESTAR MODIFICAR A FORMA COMO O MOVIMENTO DO HUSKY1 É REALIZADA
     def goal_cancel(self):
         self.client.cancel_all_goals()
         self.stopped = True
@@ -71,6 +71,7 @@ class TagRead:
     def get_frameRef(self):
         self.frame_ref = self.cv_image
 
+    #TESTAR MELHORAR A FORMA COMO O PRIMEIRO FRAME É OBTIDO, PARA DIMINUIR O RUÍDO NA IMAGEM
     def tracking(self):
         frame_ref_gray = cv2.cvtColor(self.frame_ref, cv2.COLOR_BGR2GRAY)
         print_frame = self.frame_ref
@@ -79,7 +80,10 @@ class TagRead:
         if self.first_frame is None:
             self.first_frame = frame_ref_gray
         frame_delta = cv2.absdiff(self.first_frame,frame_ref_gray)
+        #TESTAR DIMINUIR UM POUCO O VALOR DO THRESHOLD 
         threshold = cv2.threshold(frame_delta, 25, 255, cv2.THRESH_BINARY)[1]
+        #TESTAR AMANHÃ, COLOCAR O KERNEL NO DILATE E TESTAR VER SE MELHORA O RESULTADO 
+        kernel = np.ones((5,5))
         threshold = cv2.dilate(threshold, None, iterations=2)
         contours = cv2.findContours(threshold.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         contours = imutils.grab_contours(contours)
