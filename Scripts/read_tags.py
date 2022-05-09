@@ -59,6 +59,13 @@ class TagRead:
 
         self.h2_x = 0.00
         self.h2_y = 0.00
+        self.h2_qz = 0.00
+        self.h2_qw = 0.00
+        self.pred_ant = (0,0)
+        self.measured = np.array((2, 1), np.float32)
+        self.predicted = np.zeros((4, 1), np.float32)
+        self.kalman = cv2.KalmanFilter(4, 2)
+        self.kalman_filter_predict()
 
         while not rospy.is_shutdown():
             if not self.stopped:
@@ -94,6 +101,8 @@ class TagRead:
     def amcl_husky2_callback(self, amcl_msgs):
         self.h2_x = amcl_msgs.pose.pose.position.x
         self.h2_y = amcl_msgs.pose.pose.position.y
+        self.h2_qz = amcl_msgs.pose.pose.orientation.z
+        self.h2_qw = amcl_msgs.pose.pose.orientation.w
 
     def tag_callback(self,tag_msg):
         
@@ -131,44 +140,51 @@ class TagRead:
         elif z_i < z:
             return "dis"
 
-    def kalman_filter_predict(self):
-        kalman = cv2.KalmanFilter(4,2)
-        kalman.measurementMatrix = np.array([[1, 0, 0, 0], [0, 1, 0, 0]], np.float32)
-        kalman.transitionMatrix = np.array([[1, 0, 1, 0], [0, 1, 0, 1], [0, 0, 1, 0], [0, 0, 0, 1]], np.float32)
-        return kalman
-    
-    def estimate_kalman(self,coordX,coordY):
-        kalman = cv2.KalmanFilter(4, 2, 0)
+    def kalman_filter_predict(self):    
 
-        measured = np.array((2, 1), np.float32)
-        predicted = np.zeros((4, 1), np.float32)
-
-        kalman.measurementMatrix = np.array([[1, 0, 0, 0],
+        self.kalman.measurementMatrix = np.array([[1, 0, 0, 0],
                                      [0, 1, 0, 0]], np.float32)
 
-        kalman.transitionMatrix = np.array([[1, 0, 1, 0],
+        self.kalman.transitionMatrix = np.array([[1, 0, 1, 0],
                                     [0, 1, 0, 1],
                                     [0, 0, 1, 0],
                                     [0, 0, 0, 1]], np.float32)
 
-        kalman.processNoiseCov = np.array([[1, 0, 0, 0],
+        self.kalman.processNoiseCov = np.array([[1, 0, 0, 0],
                                    [0, 1, 0, 0],
                                    [0, 0, 1, 0],
                                    [0, 0, 0, 1]], np.float32) * 0.0001
 
-        kalman.measurementNoiseCov = np.array([[1, 0],
-                                                        [0, 1]], np.float32) * 0.1                                   
+        # self.kalman.measurementNoiseCov = np.array([[1, 0],
+        #                                                 [0, 1]], np.float32) * 0.1 
+    
+    def estimate_kalman(self,coordX,coordY):
+        # kalman = cv2.KalmanFilter(4, 2, 0)
 
         
-        
-        predicted = kalman.predict()
-        
-        measured = np.array([[np.float32(coordX)], [np.float32(coordY)]])
+
+        # kalman.measurementMatrix = np.array([[1, 0, 0, 0],
+        #                              [0, 1, 0, 0]], np.float32)
+
+        # kalman.transitionMatrix = np.array([[1, 0, 1, 0],
+        #                             [0, 1, 0, 1],
+        #                             [0, 0, 1, 0],
+        #                             [0, 0, 0, 1]], np.float32)
+
+        # kalman.processNoiseCov = np.array([[1, 0, 0, 0],
+        #                            [0, 1, 0, 0],
+        #                            [0, 0, 1, 0],
+        #                            [0, 0, 0, 1]], np.float32) * 0.0001
+
+        # kalman.measurementNoiseCov = np.array([[1, 0],
+        #                                                 [0, 1]], np.float32) * 0.1                                           
+        self.measured = np.array([[np.float32(coordX)], [np.float32(coordY)]])
+        self.kalman.correct(self.measured)
+        self.predicted = self.kalman.predict()        
         # print("ANTES: " + str(measured))
-        kalman.correct(measured)
-        # print("DEPOIS: " + str(measured))
-        # print("X_PREDITO: " + str(predicted[0]) + " | Y_PREDITO: " + str(predicted[1]))
-        return measured
+        
+        # print("DEPOIS: " + str(self.measured[0][0]))
+        return self.predicted
 
 
     #TESTAR MELHORAR A FORMA COMO O PRIMEIRO FRAME É OBTIDO, PARA DIMINUIR O RUÍDO NA IMAGEM
@@ -197,17 +213,22 @@ class TagRead:
                     (x,y,w,h) = cv2.boundingRect(c)
                     cv2.rectangle(print_frame, (x,y), (x+w, y+h), (0,255,0),2)
                     # kalman = self.kalman_filter_predict()
-                    pred = self.estimate_kalman(x+w/2,y+h/2)
-                    self.path_publish(((x+w/2)-pred[0],(y+h/2)-pred[1]))
-                    # print("BOUNDING BOX: X: " + str(x) + " | Y: " + str(y) + " | W: " + str(w) + " | H: " + str(h))
+                    pred = self.estimate_kalman(x+(w/2),y+(h/2))
+                    print("PRED__X: " + str(pred[0][0]) + " PRED__Y: " + str(pred[1][0]))
+                    print("PRED_ANT_X: " + str(self.pred_ant[0]) + " PRED_ANT_Y: " + str(self.pred_ant[1]))
+                    # if (((x+(w/2))-pred[0][0]) != self.pred_ant[0]) or (((y+(h/2))-pred[1][0]) != self.pred_ant[1]):
+                        # print("PRINTANDO O PATH")
+                    self.pred_ant = self.path_publish(((x+w/2)-pred[0][0],(y+h/2)-pred[1][0]))
+                        
+                    print("BOUNDING BOX: X: " + str(x) + " | Y: " + str(y) + " | W: " + str(w) + " | H: " + str(h))
                     # if len(c) > 1:
                     #     self.alredy_detect = False
                     
                     cv2.circle(print_frame, (int(pred[0]), int(pred[1])), 20, [0, 0, 255], 2, 8)
-                cv2.imshow("DELTA", frame_delta)
-                cv2.waitKey(1)
-                cv2.imshow("THRESHOLD", threshold)
-                cv2.waitKey(1)
+                # cv2.imshow("DELTA", frame_delta)
+                # cv2.waitKey(1)
+                # cv2.imshow("THRESHOLD", threshold)
+                # cv2.waitKey(1)
                 # cv2.imshow("FIRST_FRAME", self.first_frame)
                 # cv2.waitKey(1)
                 # cv2.imshow("REF_FRAME", current_frame_gray)
@@ -232,10 +253,13 @@ class TagRead:
         print("H2_X: " + str(self.h2_x) + " H2_Y: " + str(self.h2_y))
         pose.pose.position.x = self.h2_x + predict_norm[0]
         pose.pose.position.y = self.h2_y + predict_norm[1]
+        pose.pose.orientation.z = self.h2_qz
+        pose.pose.orientation.w = self.h2_qw
         path.poses.append(pose)
         # pose.position.x = self.h2_x + predict_norm[0]
         # path.poses.pose.position.y = self.h2_y + predict_norm[1]
         self.path_kalman.publish(path)
+        return predict_norm
 
     def goal_sending(self,robot_namespace,goal_point):
         if not self.alredy_detect:
