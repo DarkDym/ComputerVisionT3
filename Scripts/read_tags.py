@@ -21,7 +21,7 @@ import imutils
 import numpy as np
 import message_filters
 
-PATROL = [[13.00,-0.58],[16.41,-0.48],[15.64,4.72],[8.51,5.53],[5.10,0.00]]
+PATROL = [[13.00-7,-0.58],[16.41-7,-0.48],[15.64-7,4.72],[8.51-7,5.53],[5.10-7,0.00]]
 ROBOT_NAMESPACE = "/husky1"
 CONT_PATROL = 0
 PATROL_RESUME = 0
@@ -49,6 +49,8 @@ class TagRead:
         self.first_frame = None
         self.stopped = False
         self.initialize = False
+
+        self.contador = 0
 
         self.cont_kalman = 0
         self.f_ant = []
@@ -204,16 +206,22 @@ class TagRead:
                     #     self.alredy_detect = False
                     
                     cv2.circle(print_frame, (int(pred[0]), int(pred[1])), 20, [0, 0, 255], 2, 8)
-                cv2.imshow("DELTA", frame_delta)
-                cv2.waitKey(1)
-                cv2.imshow("THRESHOLD", threshold)
-                cv2.waitKey(1)
+                # cv2.imshow("DELTA", frame_delta)
+                cv2.imwrite("delta"+str(self.contador)+".png", frame_delta)
+                # cv2.waitKey(1)
+                # cv2.imshow("THRESHOLD", threshold)
+                cv2.imwrite("threshold"+str(self.contador)+".png", threshold)
+                # cv2.waitKey(1)
                 # cv2.imshow("FIRST_FRAME", self.first_frame)
                 # cv2.waitKey(1)
                 # cv2.imshow("REF_FRAME", current_frame_gray)
                 # cv2.waitKey(1)
-                cv2.imshow("PRINT_FRAME", print_frame)
-                cv2.waitKey(1)
+                # cv2.imshow("PRINT_FRAME", print_frame)
+                cv2.imwrite("print_frame"+str(self.contador)+".png", print_frame)
+
+                self.contador = self.contador + 1
+                
+                # cv2.waitKey(1)
                 # cv2.imshow("TAG_DETECTION HUSKY1", self.cv_image)
                 # cv2.waitKey(1)
             # else:
