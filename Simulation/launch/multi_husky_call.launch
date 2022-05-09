@@ -42,7 +42,7 @@
         <param name="/$(arg robot2_name)/map_merge/init_pose_yaw" value="0.00"/>
         <include file="$(find computer_vision_t3)/launch/husky_bringup.launch">
             <arg name="model" value="$(arg robot2_name)"/>
-            <arg name="init_pose" value="-x 20.00 -y -15.00 -Y 0.0"/>
+            <arg name="init_pose" value="-x 14.00 -y 7.00 -Y 0.0"/>
             <arg name="ipx" value="7.00"/>
             <arg name="ipy" value="0.00"/>
             <arg name="navigating" value="$(arg navigating)"/>

@@ -1,4 +1,7 @@
+from cmath import sqrt
 from time import sleep
+
+#BIBLIOTECAS PARA ROS(SIMULAÇÃO DO ROBÔ)
 import rospy
 from apriltag_ros.msg import AprilTagDetectionArray
 from sensor_msgs.msg import Image
@@ -6,10 +9,14 @@ from move_base_msgs.msg import MoveBaseGoal,MoveBaseResult,MoveBaseAction
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from cv_bridge import CvBridge
+from std_msgs.msg import Int8
+from nav_msgs.msg import Path
+from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped
+
+#BIBLIOTECAS PARA ANÁLISE DAS IMAGES
 import cv2
 from scipy.spatial import distance
 import actionlib
-from std_msgs.msg import Int8
 import imutils
 import numpy as np
 import message_filters
@@ -23,13 +30,18 @@ class TagRead:
     def __init__(self,robot_namespace,client):
         print("#####################################INITIALIZE SCRIPT#####################################")
         cont = CONT_PATROL
-        rospy.init_node("listener_tag", anonymous=True)        
+        rospy.init_node("listener_tag", anonymous=True)     
+
         rospy.Subscriber(str(robot_namespace)+"/tag_detections_image", Image, self.image_tag_callback)
         rospy.Subscriber(str(robot_namespace)+"/tag_detections", AprilTagDetectionArray, self.tag_callback)
         #rospy.Subscriber(str(robot_namespace)+"/cmd_vel", Twist, self.cmdvel_callback)
-        rospy.Subscriber(str(robot_namespace)+"/odometry/filtered", Odometry, self.odometry_callback)
-        rospy.Subscriber("/patrol_cont", Int8, self.patrol_cont_callback)
+        rospy.Subscriber(str(robot_namespace)+"/odometry/filtered", Odometry, self.odometry_callback)   
+        rospy.Subscriber("/husky2/amcl_pose", PoseWithCovarianceStamped, self.amcl_husky2_callback)   
+
+        # rospy.Subscriber("/patrol_cont", Int8, self.patrol_cont_callback)
         pc_pub = rospy.Publisher("/patrol_cont", Int8, queue_size=10)
+        self.path_kalman = rospy.Publisher("/kalman_path", Path, queue_size=10)
+
         self.client = client
         self.alredy_detect = False
         self.cv_image = np.zeros((480,640,3), dtype=np.uint8)
@@ -38,10 +50,15 @@ class TagRead:
         self.stopped = False
         self.initialize = False
 
+        self.cont_kalman = 0
+        self.f_ant = []
+        self.f_cur = []
+
         self.cmdvel_x = 0.00
         self.cmdvel_y = 0.00
 
-        rospy.spin()
+        self.h2_x = 0.00
+        self.h2_y = 0.00
 
         while not rospy.is_shutdown():
             if not self.stopped:
@@ -56,6 +73,8 @@ class TagRead:
                     else:
                         cont += 1
                         pc_pub.publish(cont)
+        # rospy.spin()
+    # def init_system(self,robot_namespace,client):
     
     def image_tag_callback(self,image_tag_msg):
         self.cv_image = bridge.imgmsg_to_cv2(image_tag_msg, desired_encoding='bgr8')
@@ -67,16 +86,14 @@ class TagRead:
     
     def patrol_cont_callback(self,patrol_cont_msg):
         CONT_PATROL = patrol_cont_msg
-    
-    
-    #def cmdvel_callback(self,cmdvel_msgs):
-    #    self.cmdvel_x = cmdvel_msgs.linear.x
-    #    self.cmdvel_y = cmdvel_msgs.linear.y
 
     def odometry_callback(self,odometry_msgs):
         self.cmdvel_x = odometry_msgs.twist.twist.linear.x
         self.cmdvel_y = odometry_msgs.twist.twist.linear.y
-        #print("&&&&&&&&&&&TWIST_X: " +str(self.cmdvel_x) + "TWIST_Y: " +str(self.cmdvel_y)) 
+    
+    def amcl_husky2_callback(self, amcl_msgs):
+        self.h2_x = amcl_msgs.pose.pose.position.x
+        self.h2_y = amcl_msgs.pose.pose.position.y
 
     def tag_callback(self,tag_msg):
         
@@ -91,6 +108,7 @@ class TagRead:
             self.first_frame = None
             self.stopped = False
             CONT_PATROL = PATROL_RESUME
+            cv2.destroyAllWindows()
     #TESTAR MODIFICAR A FORMA COMO O MOVIMENTO DO HUSKY1 É REALIZADA
     def goal_cancel(self):
         self.client.cancel_all_goals()
@@ -104,6 +122,54 @@ class TagRead:
                 self.current_frame = self.cv_image
         else:
             print("############CV_IMAGE IS EMPTY################")
+
+    def compute_direction(self,x,y,x_i,y_i):
+        z = sqrt(pow(x,2)+pow(y,2))
+        z_i = sqrt(pow(x_i,2)+pow(y_i,2))
+        if z_i > z:
+            return "apr"
+        elif z_i < z:
+            return "dis"
+
+    def kalman_filter_predict(self):
+        kalman = cv2.KalmanFilter(4,2)
+        kalman.measurementMatrix = np.array([[1, 0, 0, 0], [0, 1, 0, 0]], np.float32)
+        kalman.transitionMatrix = np.array([[1, 0, 1, 0], [0, 1, 0, 1], [0, 0, 1, 0], [0, 0, 0, 1]], np.float32)
+        return kalman
+    
+    def estimate_kalman(self,coordX,coordY):
+        kalman = cv2.KalmanFilter(4, 2, 0)
+
+        measured = np.array((2, 1), np.float32)
+        predicted = np.zeros((4, 1), np.float32)
+
+        kalman.measurementMatrix = np.array([[1, 0, 0, 0],
+                                     [0, 1, 0, 0]], np.float32)
+
+        kalman.transitionMatrix = np.array([[1, 0, 1, 0],
+                                    [0, 1, 0, 1],
+                                    [0, 0, 1, 0],
+                                    [0, 0, 0, 1]], np.float32)
+
+        kalman.processNoiseCov = np.array([[1, 0, 0, 0],
+                                   [0, 1, 0, 0],
+                                   [0, 0, 1, 0],
+                                   [0, 0, 0, 1]], np.float32) * 0.0001
+
+        kalman.measurementNoiseCov = np.array([[1, 0],
+                                                        [0, 1]], np.float32) * 0.1                                   
+
+        
+        
+        predicted = kalman.predict()
+        
+        measured = np.array([[np.float32(coordX)], [np.float32(coordY)]])
+        # print("ANTES: " + str(measured))
+        kalman.correct(measured)
+        # print("DEPOIS: " + str(measured))
+        # print("X_PREDITO: " + str(predicted[0]) + " | Y_PREDITO: " + str(predicted[1]))
+        return measured
+
 
     #TESTAR MELHORAR A FORMA COMO O PRIMEIRO FRAME É OBTIDO, PARA DIMINUIR O RUÍDO NA IMAGEM
     def tracking(self):
@@ -122,7 +188,7 @@ class TagRead:
                 threshold = cv2.threshold(frame_delta, 20, 255, cv2.THRESH_BINARY)[1]
                 #TESTAR AMANHÃ, COLOCAR O KERNEL NO DILATE E TESTAR VER SE MELHORA O RESULTADO 
                 kernel = np.ones((5,5))
-                threshold = cv2.dilate(threshold, kernel, iterations=2)
+                threshold = cv2.dilate(threshold, None, iterations=2)
                 contours = cv2.findContours(threshold.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
                 contours = imutils.grab_contours(contours)
                 for c in contours:
@@ -130,7 +196,17 @@ class TagRead:
                         continue
                     (x,y,w,h) = cv2.boundingRect(c)
                     cv2.rectangle(print_frame, (x,y), (x+w, y+h), (0,255,0),2)
+                    # kalman = self.kalman_filter_predict()
+                    pred = self.estimate_kalman(x+w/2,y+h/2)
+                    self.path_publish(((x+w/2)-pred[0],(y+h/2)-pred[1]))
+                    # print("BOUNDING BOX: X: " + str(x) + " | Y: " + str(y) + " | W: " + str(w) + " | H: " + str(h))
+                    # if len(c) > 1:
+                    #     self.alredy_detect = False
+                    
+                    cv2.circle(print_frame, (int(pred[0]), int(pred[1])), 20, [0, 0, 255], 2, 8)
                 cv2.imshow("DELTA", frame_delta)
+                cv2.waitKey(1)
+                cv2.imshow("THRESHOLD", threshold)
                 cv2.waitKey(1)
                 # cv2.imshow("FIRST_FRAME", self.first_frame)
                 # cv2.waitKey(1)
@@ -147,7 +223,20 @@ class TagRead:
             #         cv2.destroyWindow("PRINT_FRAME")
         else:
             print("@@@@@@@@@@@@@@@@current_frame IS EMPTY@@@@@@@@@@@@@@@@@@@@@@@@")
-                
+
+    def path_publish(self, predict_norm):
+        path = Path()
+        pose = PoseStamped()
+        path.header.stamp = rospy.get_rostime()
+        path.header.frame_id = "map"
+        print("H2_X: " + str(self.h2_x) + " H2_Y: " + str(self.h2_y))
+        pose.pose.position.x = self.h2_x + predict_norm[0]
+        pose.pose.position.y = self.h2_y + predict_norm[1]
+        path.poses.append(pose)
+        # pose.position.x = self.h2_x + predict_norm[0]
+        # path.poses.pose.position.y = self.h2_y + predict_norm[1]
+        self.path_kalman.publish(path)
+
     def goal_sending(self,robot_namespace,goal_point):
         if not self.alredy_detect:
             print("#######SENDING GOAL")
@@ -169,7 +258,7 @@ class TagRead:
             else:
                 return self.client.get_result()
         else:
-            print("TAG DETECTED, WAITING IT MOVES.")
+            print("TAG DETECTED, WAITING ROBOT TO MOVE.")
     
 
 
