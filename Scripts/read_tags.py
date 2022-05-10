@@ -1,6 +1,8 @@
 from cmath import sqrt
 from time import sleep
 
+import initialize_pose
+
 #BIBLIOTECAS PARA ROS(SIMULAÇÃO DO ROBÔ)
 import rospy
 from apriltag_ros.msg import AprilTagDetectionArray
@@ -36,13 +38,10 @@ class TagRead:
 
         rospy.Subscriber(str(robot_namespace)+"/tag_detections_image", Image, self.image_tag_callback)
         rospy.Subscriber(str(robot_namespace)+"/tag_detections", AprilTagDetectionArray, self.tag_callback)
-        #rospy.Subscriber(str(robot_namespace)+"/cmd_vel", Twist, self.cmdvel_callback)
         rospy.Subscriber(str(robot_namespace)+"/odometry/filtered", Odometry, self.odometry_callback)   
         rospy.Subscriber("/husky2/amcl_pose", PoseWithCovarianceStamped, self.amcl_husky2_callback)   
 
-        # rospy.Subscriber("/patrol_cont", Int8, self.patrol_cont_callback)
         pc_pub = rospy.Publisher("/patrol_cont", Int8, queue_size=10)
-        # self.path_kalman = rospy.Publisher("/kalman_path", Path, queue_size=10)
         self.path_kalman = rospy.Publisher("/kalman_path", MarkerArray, queue_size=10)
         self.cmd_vel = rospy.Publisher(str(robot_namespace)+"/cmd_vel", Twist,queue_size=10)
 
@@ -116,20 +115,18 @@ class TagRead:
             self.goal_cancel()
             self.stop_cmdvel()
             self.get_frameRef()
-            self.tracking()
-            
+            self.tracking()         
         else:
             self.alredy_detect = False
             self.first_frame = None
             self.stopped = False
             CONT_PATROL = PATROL_RESUME
             cv2.destroyAllWindows()
-    #TESTAR MODIFICAR A FORMA COMO O MOVIMENTO DO HUSKY1 É REALIZADA
+
     def goal_cancel(self):
         self.client.cancel_all_goals()
         self.stopped = True
         PATROL_RESUME = CONT_PATROL
-
 
     def stop_cmdvel(self):
         cmd = Twist()
@@ -144,14 +141,6 @@ class TagRead:
                 self.current_frame = self.cv_image
         else:
             print("############CV_IMAGE IS EMPTY################")
-
-    def compute_direction(self,x,y,x_i,y_i):
-        z = sqrt(pow(x,2)+pow(y,2))
-        z_i = sqrt(pow(x_i,2)+pow(y_i,2))
-        if z_i > z:
-            return "apr"
-        elif z_i < z:
-            return "dis"
 
     def kalman_filter_predict(self):    
 
@@ -175,17 +164,14 @@ class TagRead:
         self.measured = np.array([[np.float32(coordX)], [np.float32(coordY)]])
         self.kalman.correct(self.measured)
         self.predicted = self.kalman.predict()
-        print("PREDICTED: " + str(self.predicted))     
+        # print("PREDICTED: " + str(self.predicted))     
         return self.predicted
 
-
-    #TESTAR MELHORAR A FORMA COMO O PRIMEIRO FRAME É OBTIDO, PARA DIMINUIR O RUÍDO NA IMAGEM
     def tracking(self):
         if self.current_frame is not None:
             if (self.cmdvel_x <= 0.0001 and self.cmdvel_x >= -0.0001) and (self.cmdvel_y <= 0.0001 and self.cmdvel_y >= -0.0001):
                 current_frame_gray = cv2.cvtColor(self.current_frame, cv2.COLOR_BGR2GRAY)
                 print_frame = self.current_frame
-                # current_frame_gray = cv2.GaussianBlur(current_frame_gray,(21,21),0)
 
                 if not self.alredy_detect:
                     print("RECEBIDO")
@@ -194,8 +180,6 @@ class TagRead:
                 frame_delta = cv2.absdiff(self.first_frame,current_frame_gray)
                 #TESTAR DIMINUIR UM POUCO O VALOR DO THRESHOLD 
                 threshold = cv2.threshold(frame_delta, 23, 255, cv2.THRESH_BINARY)[1]
-                #TESTAR AMANHÃ, COLOCAR O KERNEL NO DILATE E TESTAR VER SE MELHORA O RESULTADO 
-                kernel = np.ones((5,5))
                 threshold = cv2.dilate(threshold, None, iterations=2)
                 contours = cv2.findContours(threshold.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
                 contours = imutils.grab_contours(contours)
@@ -204,33 +188,28 @@ class TagRead:
                         continue
                     (x,y,w,h) = cv2.boundingRect(c)
                     cv2.rectangle(print_frame, (x,y), (x+w, y+h), (0,255,0),2)
-                    # kalman = self.kalman_filter_predict()
+                    
                     center_x = x+(w/2)
                     center_y = y+(h/2)
-                    pred = self.estimate_kalman(center_x,center_y)
-                    print("PRED__X: " + str(pred[0][0]) + " PRED__Y: " + str(pred[1][0]))
-                    print("PRED_ANT_X: " + str(self.pred_ant[0]) + " PRED_ANT_Y: " + str(self.pred_ant[1]))
+                    
+                    # pred = self.estimate_kalman(center_x,center_y)
+                    pred = self.estimate_kalman(x,y)
+
+                    # print("PRED__X: " + str(pred[0][0]) + " PRED__Y: " + str(pred[1][0]))
+                    # print("PRED_ANT_X: " + str(self.pred_ant[0]) + " PRED_ANT_Y: " + str(self.pred_ant[1]))
                     # if (((x+(w/2))-pred[0][0]) != self.pred_ant[0]) or (((y+(h/2))-pred[1][0]) != self.pred_ant[1]):
                         # print("PRINTANDO O PATH")
                     self.pred_ant = self.path_publish((pred[0][0]/center_x,pred[1][0]/center_y))
+                    # self.pred_ant = self.path_publish((pred[0][0]/x,pred[1][0]/y))
                         
-                    print("BOUNDING BOX: X: " + str(x) + " | Y: " + str(y) + " | W: " + str(w) + " | H: " + str(h))
+                    # print("BOUNDING BOX: X: " + str(x) + " | Y: " + str(y) + " | W: " + str(w) + " | H: " + str(h))
                     # if len(c) > 1:
                     #     self.alredy_detect = False
                     
-                    cv2.circle(print_frame, (int(pred[0]), int(pred[1])), 10, [0, 0, 255], 2, 8)
-                # cv2.imshow("DELTA", frame_delta)
-                # cv2.waitKey(1)
-                # cv2.imshow("THRESHOLD", threshold)
-                # cv2.waitKey(1)
-                # cv2.imshow("FIRST_FRAME", self.first_frame)
-                # cv2.waitKey(1)
-                # cv2.imshow("REF_FRAME", current_frame_gray)
-                # cv2.waitKey(1)
+                    # cv2.circle(print_frame, (int(pred[0]), int(pred[1])), 10, [0, 0, 255], 2, 8)
+                    cv2.rectangle(print_frame, (int(pred[0]), int(pred[1])), (int(pred[0])+w, int(pred[1])+h), (255,0,0),2)
                 cv2.imshow("PRINT_FRAME", print_frame)
                 cv2.waitKey(1)
-                # cv2.imshow("TAG_DETECTION HUSKY1", self.cv_image)
-                # cv2.waitKey(1)
             # else:
             #     print(cv2.getWindowProperty("PRINT_FRAME", cv2.WND_PROP_VISIBLE))
             #     if cv2.getWindowProperty("PRINT_FRAME", cv2.WND_PROP_VISIBLE) > 0:
@@ -240,14 +219,10 @@ class TagRead:
             print("@@@@@@@@@@@@@@@@current_frame IS EMPTY@@@@@@@@@@@@@@@@@@@@@@@@")
 
     def path_publish(self, predict_norm):
-        # path = Path()
         path = MarkerArray()
-        # pose = PoseStamped()
         mark = Marker()
         mark.header.stamp = rospy.get_rostime()
         mark.header.frame_id = "map"
-        # print("H2_X: " + str(self.h2_x) + " H2_Y: " + str(self.h2_y))
-        print("PREDICT_NORM: " + str(predict_norm))
         print("H2_X_PLUS: " + str(self.h2_x + predict_norm[0]) + " H2_Y_PLUS: " + str(self.h2_y + predict_norm[1]))
         mark.pose.position.x = self.h2_x + predict_norm[0]
         mark.pose.position.y = self.h2_y + predict_norm[1]
@@ -261,9 +236,6 @@ class TagRead:
         mark.scale.y = 0.1
         mark.scale.z = 0.1
         path.markers.append(mark)
-        # path.poses.append(pose)
-        # pose.position.x = self.h2_x + predict_norm[0]
-        # path.poses.pose.position.y = self.h2_y + predict_norm[1]
         self.path_kalman.publish(path)
         return predict_norm
 
@@ -293,8 +265,7 @@ class TagRead:
 
 
 if __name__ == '__main__':
-    bridge = CvBridge()
-    
+    bridge = CvBridge()    
     try:
         tg_read = TagRead(ROBOT_NAMESPACE,actionlib.SimpleActionClient(str(ROBOT_NAMESPACE)+"/move_base",MoveBaseAction))
     except rospy.ROSInterruptException:
