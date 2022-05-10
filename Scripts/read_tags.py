@@ -13,6 +13,8 @@ from std_msgs.msg import Int8
 from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped
 
+from visualization_msgs.msg import MarkerArray, Marker
+
 #BIBLIOTECAS PARA ANÁLISE DAS IMAGES
 import cv2
 from scipy.spatial import distance
@@ -40,7 +42,9 @@ class TagRead:
 
         # rospy.Subscriber("/patrol_cont", Int8, self.patrol_cont_callback)
         pc_pub = rospy.Publisher("/patrol_cont", Int8, queue_size=10)
-        self.path_kalman = rospy.Publisher("/kalman_path", Path, queue_size=10)
+        # self.path_kalman = rospy.Publisher("/kalman_path", Path, queue_size=10)
+        self.path_kalman = rospy.Publisher("/kalman_path", MarkerArray, queue_size=10)
+        self.cmd_vel = rospy.Publisher(str(robot_namespace)+"/cmd_vel", Twist,queue_size=10)
 
         self.client = client
         self.alredy_detect = False
@@ -68,6 +72,7 @@ class TagRead:
         self.predicted = np.zeros((4, 1), np.float32)
         self.kalman = cv2.KalmanFilter(4, 2)
         self.kalman_filter_predict()
+        self.r = 10.0
 
         while not rospy.is_shutdown():
             if not self.stopped:
@@ -109,8 +114,9 @@ class TagRead:
     def tag_callback(self,tag_msg):
         
         if (len(tag_msg.detections) > 0):
-            print("TAG ENCONTRADA")
+            # print("TAG ENCONTRADA")
             self.goal_cancel()
+            self.stop_cmdvel()
             self.get_frameRef()
             self.tracking()
             
@@ -129,6 +135,13 @@ class TagRead:
         #     self.stopped = False
         PATROL_RESUME = CONT_PATROL
 
+
+    def stop_cmdvel(self):
+        cmd = Twist()
+        cmd.linear.x = 0.00
+        cmd.linear.y = 0.00
+        cmd.angular.z = 0.00
+        self.cmd_vel.publish(cmd)
 
     def get_frameRef(self):
         if self.cv_image is not None:
@@ -158,37 +171,16 @@ class TagRead:
         self.kalman.processNoiseCov = np.array([[1, 0, 0, 0],
                                    [0, 1, 0, 0],
                                    [0, 0, 1, 0],
-                                   [0, 0, 0, 1]], np.float32) * 0.0001
+                                   [0, 0, 0, 1]], np.float32) * 0.003
 
-        # self.kalman.measurementNoiseCov = np.array([[1, 0],
-        #                                                 [0, 1]], np.float32) * 0.1 
+        self.kalman.measurementNoiseCov = np.array([[1, 0],
+                                                        [0, 1]], np.float32) * 0.1 
     
-    def estimate_kalman(self,coordX,coordY):
-        # kalman = cv2.KalmanFilter(4, 2, 0)
-
-        
-
-        # kalman.measurementMatrix = np.array([[1, 0, 0, 0],
-        #                              [0, 1, 0, 0]], np.float32)
-
-        # kalman.transitionMatrix = np.array([[1, 0, 1, 0],
-        #                             [0, 1, 0, 1],
-        #                             [0, 0, 1, 0],
-        #                             [0, 0, 0, 1]], np.float32)
-
-        # kalman.processNoiseCov = np.array([[1, 0, 0, 0],
-        #                            [0, 1, 0, 0],
-        #                            [0, 0, 1, 0],
-        #                            [0, 0, 0, 1]], np.float32) * 0.0001
-
-        # kalman.measurementNoiseCov = np.array([[1, 0],
-        #                                                 [0, 1]], np.float32) * 0.1                                           
+    def estimate_kalman(self,coordX,coordY):                                         
         self.measured = np.array([[np.float32(coordX)], [np.float32(coordY)]])
         self.kalman.correct(self.measured)
-        self.predicted = self.kalman.predict()        
-        # print("ANTES: " + str(measured))
-        
-        # print("DEPOIS: " + str(self.measured[0][0]))
+        self.predicted = self.kalman.predict()
+        print("PREDICTED: " + str(self.predicted))     
         return self.predicted
 
 
@@ -206,7 +198,7 @@ class TagRead:
                     self.alredy_detect = True
                 frame_delta = cv2.absdiff(self.first_frame,current_frame_gray)
                 #TESTAR DIMINUIR UM POUCO O VALOR DO THRESHOLD 
-                threshold = cv2.threshold(frame_delta, 20, 255, cv2.THRESH_BINARY)[1]
+                threshold = cv2.threshold(frame_delta, 23, 255, cv2.THRESH_BINARY)[1]
                 #TESTAR AMANHÃ, COLOCAR O KERNEL NO DILATE E TESTAR VER SE MELHORA O RESULTADO 
                 kernel = np.ones((5,5))
                 threshold = cv2.dilate(threshold, None, iterations=2)
@@ -218,18 +210,20 @@ class TagRead:
                     (x,y,w,h) = cv2.boundingRect(c)
                     cv2.rectangle(print_frame, (x,y), (x+w, y+h), (0,255,0),2)
                     # kalman = self.kalman_filter_predict()
-                    pred = self.estimate_kalman(x+(w/2),y+(h/2))
+                    center_x = x+(w/2)
+                    center_y = y+(h/2)
+                    pred = self.estimate_kalman(center_x,center_y)
                     print("PRED__X: " + str(pred[0][0]) + " PRED__Y: " + str(pred[1][0]))
                     print("PRED_ANT_X: " + str(self.pred_ant[0]) + " PRED_ANT_Y: " + str(self.pred_ant[1]))
                     # if (((x+(w/2))-pred[0][0]) != self.pred_ant[0]) or (((y+(h/2))-pred[1][0]) != self.pred_ant[1]):
                         # print("PRINTANDO O PATH")
-                    self.pred_ant = self.path_publish(((x+w/2)-pred[0][0],(y+h/2)-pred[1][0]))
+                    self.pred_ant = self.path_publish((pred[0][0]/center_x,pred[1][0]/center_y))
                         
                     print("BOUNDING BOX: X: " + str(x) + " | Y: " + str(y) + " | W: " + str(w) + " | H: " + str(h))
                     # if len(c) > 1:
                     #     self.alredy_detect = False
                     
-                    cv2.circle(print_frame, (int(pred[0]), int(pred[1])), 20, [0, 0, 255], 2, 8)
+                    cv2.circle(print_frame, (int(pred[0]), int(pred[1])), 10, [0, 0, 255], 2, 8)
                 # cv2.imshow("DELTA", frame_delta)
                 if  self.contador<30:
                     cv2.imwrite("delta"+str(self.contador)+".png", frame_delta)
@@ -258,16 +252,28 @@ class TagRead:
             print("@@@@@@@@@@@@@@@@current_frame IS EMPTY@@@@@@@@@@@@@@@@@@@@@@@@")
 
     def path_publish(self, predict_norm):
-        path = Path()
-        pose = PoseStamped()
-        path.header.stamp = rospy.get_rostime()
-        path.header.frame_id = "map"
-        print("H2_X: " + str(self.h2_x) + " H2_Y: " + str(self.h2_y))
-        pose.pose.position.x = self.h2_x + predict_norm[0]
-        pose.pose.position.y = self.h2_y + predict_norm[1]
-        pose.pose.orientation.z = self.h2_qz
-        pose.pose.orientation.w = self.h2_qw
-        path.poses.append(pose)
+        # path = Path()
+        path = MarkerArray()
+        # pose = PoseStamped()
+        mark = Marker()
+        mark.header.stamp = rospy.get_rostime()
+        mark.header.frame_id = "map"
+        # print("H2_X: " + str(self.h2_x) + " H2_Y: " + str(self.h2_y))
+        print("PREDICT_NORM: " + str(predict_norm))
+        print("H2_X_PLUS: " + str(self.h2_x + predict_norm[0]) + " H2_Y_PLUS: " + str(self.h2_y + predict_norm[1]))
+        mark.pose.position.x = self.h2_x + predict_norm[0]
+        mark.pose.position.y = self.h2_y + predict_norm[1]
+        mark.pose.orientation.z = self.h2_qz
+        mark.pose.orientation.w = self.h2_qw
+        mark.color.r = self.r
+        mark.color.g = 0.0
+        mark.color.b = 0.0
+        mark.color.a = 1.0
+        mark.scale.x = 0.4
+        mark.scale.y = 0.1
+        mark.scale.z = 0.1
+        path.markers.append(mark)
+        # path.poses.append(pose)
         # pose.position.x = self.h2_x + predict_norm[0]
         # path.poses.pose.position.y = self.h2_y + predict_norm[1]
         self.path_kalman.publish(path)
