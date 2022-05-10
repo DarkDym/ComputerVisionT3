@@ -123,7 +123,10 @@ class TagRead:
     #TESTAR MODIFICAR A FORMA COMO O MOVIMENTO DO HUSKY1 É REALIZADA
     def goal_cancel(self):
         self.client.cancel_all_goals()
+        # if (self.cmdvel_x <= 0.0001 and self.cmdvel_x >= -0.0001) and (self.cmdvel_y <= 0.0001 and self.cmdvel_y >= -0.0001):
         self.stopped = True
+        # else:
+        #     self.stopped = False
         PATROL_RESUME = CONT_PATROL
 
 
@@ -192,7 +195,7 @@ class TagRead:
     #TESTAR MELHORAR A FORMA COMO O PRIMEIRO FRAME É OBTIDO, PARA DIMINUIR O RUÍDO NA IMAGEM
     def tracking(self):
         if self.current_frame is not None:
-            if (self.cmdvel_x <= 0.0001 or self.cmdvel_x >= -0.0001) and (self.cmdvel_y <= 0.0001 or self.cmdvel_y >= -0.0001 or self.cmdvel_y == 0.00):
+            if (self.cmdvel_x <= 0.0001 and self.cmdvel_x >= -0.0001) and (self.cmdvel_y <= 0.0001 and self.cmdvel_y >= -0.0001):
                 current_frame_gray = cv2.cvtColor(self.current_frame, cv2.COLOR_BGR2GRAY)
                 print_frame = self.current_frame
                 # current_frame_gray = cv2.GaussianBlur(current_frame_gray,(21,21),0)
@@ -228,20 +231,21 @@ class TagRead:
                     
                     cv2.circle(print_frame, (int(pred[0]), int(pred[1])), 20, [0, 0, 255], 2, 8)
                 # cv2.imshow("DELTA", frame_delta)
-                cv2.imwrite("delta"+str(self.contador)+".png", frame_delta)
-                # cv2.waitKey(1)
-                # cv2.imshow("THRESHOLD", threshold)
-                cv2.imwrite("threshold"+str(self.contador)+".png", threshold)
-                # cv2.waitKey(1)
-                # cv2.imshow("FIRST_FRAME", self.first_frame)
-                # cv2.waitKey(1)
-                # cv2.imshow("REF_FRAME", current_frame_gray)
-                # cv2.waitKey(1)
-                # cv2.imshow("PRINT_FRAME", print_frame)
-                cv2.imwrite("print_frame"+str(self.contador)+".png", print_frame)
+                if  self.contador<30:
+                    cv2.imwrite("delta"+str(self.contador)+".png", frame_delta)
+                    # cv2.waitKey(1)
+                    # cv2.imshow("THRESHOLD", threshold)
+                    cv2.imwrite("threshold"+str(self.contador)+".png", threshold)
+                    # cv2.waitKey(1)
+                    # cv2.imshow("FIRST_FRAME", self.first_frame)
+                    # cv2.waitKey(1)
+                    # cv2.imshow("REF_FRAME", current_frame_gray)
+                    # cv2.waitKey(1)
+                    # cv2.imshow("PRINT_FRAME", print_frame)
+                    cv2.imwrite("print_frame"+str(self.contador)+".png", print_frame)
 
-                self.contador = self.contador + 1
-                
+                    self.contador = self.contador + 1
+                    
                 # cv2.waitKey(1)
                 # cv2.imshow("TAG_DETECTION HUSKY1", self.cv_image)
                 # cv2.waitKey(1)
