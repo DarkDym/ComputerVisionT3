@@ -1,29 +1,21 @@
-from cmath import sqrt
-from time import sleep
-
-import initialize_pose
-
 #BIBLIOTECAS PARA ROS(SIMULAÇÃO DO ROBÔ)
 import rospy
 from apriltag_ros.msg import AprilTagDetectionArray
 from sensor_msgs.msg import Image
-from move_base_msgs.msg import MoveBaseGoal,MoveBaseResult,MoveBaseAction
+from move_base_msgs.msg import MoveBaseGoal,MoveBaseAction
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from cv_bridge import CvBridge
 from std_msgs.msg import Int8
 from nav_msgs.msg import Path
-from geometry_msgs.msg import PoseWithCovarianceStamped, PoseStamped
-
+from geometry_msgs.msg import PoseWithCovarianceStamped
 from visualization_msgs.msg import MarkerArray, Marker
 
 #BIBLIOTECAS PARA ANÁLISE DAS IMAGES
 import cv2
-from scipy.spatial import distance
 import actionlib
 import imutils
 import numpy as np
-import message_filters
 
 PATROL = [[13.00,-0.58],[16.41,-0.48],[15.64,4.72],[8.51,5.53],[5.10,0.00]]
 MOVEMENT_HUSKY2 = [[13.73,5.63],[10.09,5.73]]
@@ -36,7 +28,6 @@ class TagRead:
     def __init__(self,robot_namespace,client):
         print("#####################################INITIALIZE SCRIPT#####################################")
         cont = CONT_PATROL
-        cont2 = 0
         rospy.init_node("listener_tag", anonymous=True)     
 
         cv2.namedWindow("PRINT_FRAME", cv2.WINDOW_AUTOSIZE)
@@ -76,8 +67,6 @@ class TagRead:
         self.kalman_filter_predict()
         self.r = 10.0
 
-        # husky2_client = actionlib.SimpleActionClient(str(ROBOT_NAMESPACE2)+"/move_base",MoveBaseAction)
-
         while not rospy.is_shutdown():
             if not self.stopped:
                 result = self.goal_sending(ROBOT_NAMESPACE,PATROL[cont])
@@ -91,22 +80,9 @@ class TagRead:
                     else:
                         cont += 1
                         pc_pub.publish(cont)
-            # result = self.goal_sending_object(ROBOT_NAMESPACE2,MOVEMENT_HUSKY2[cont2],husky2_client)
-            # if result:
-            #     if (cont2 >= len(MOVEMENT_HUSKY2)-1):
-            #         cont2 = 0
-            #     else:
-            #         cont2 += 1
-        # rospy.spin()
-    # def init_system(self,robot_namespace,client):
     
     def image_tag_callback(self,image_tag_msg):
         self.cv_image = bridge.imgmsg_to_cv2(image_tag_msg, desired_encoding='bgr8')
-        # if self.cv_image is not None:
-            # cv2.imshow("TAG_DETECTION HUSKY1", self.cv_image)
-            # cv2.waitKey(1)
-        # else:
-            # print("----------WAITING FOR CAMERA FRAME---------------")
     
     def patrol_cont_callback(self,patrol_cont_msg):
         CONT_PATROL = patrol_cont_msg
@@ -124,7 +100,6 @@ class TagRead:
     def tag_callback(self,tag_msg):
         
         if (len(tag_msg.detections) > 0):
-            # print("TAG ENCONTRADA")
             self.goal_cancel()
             self.stop_cmdvel()
             self.get_frameRef()
@@ -134,7 +109,6 @@ class TagRead:
             self.first_frame = None
             self.stopped = False
             CONT_PATROL = PATROL_RESUME
-            # cv2.destroyAllWindows()
 
     def goal_cancel(self):
         self.client.cancel_all_goals()
@@ -176,8 +150,7 @@ class TagRead:
     def estimate_kalman(self,coordX,coordY):                                         
         self.measured = np.array([[np.float32(coordX)], [np.float32(coordY)]])
         self.kalman.correct(self.measured)
-        self.predicted = self.kalman.predict()
-        # print("PREDICTED: " + str(self.predicted))     
+        self.predicted = self.kalman.predict()    
         return self.predicted
 
     def tracking(self):
@@ -191,7 +164,6 @@ class TagRead:
                     self.first_frame = current_frame_gray
                     self.alredy_detect = True
                 frame_delta = cv2.absdiff(self.first_frame,current_frame_gray)
-                #TESTAR DIMINUIR UM POUCO O VALOR DO THRESHOLD 
                 threshold = cv2.threshold(frame_delta, 23, 255, cv2.THRESH_BINARY)[1]
                 threshold = cv2.dilate(threshold, None, iterations=2)
                 contours = cv2.findContours(threshold.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -205,29 +177,13 @@ class TagRead:
                     center_x = x+(w/2)
                     center_y = y+(h/2)
                     
-                    # pred = self.estimate_kalman(center_x,center_y)
                     pred = self.estimate_kalman(x,y)
 
-                    # print("PRED__X: " + str(pred[0][0]) + " PRED__Y: " + str(pred[1][0]))
-                    # print("PRED_ANT_X: " + str(self.pred_ant[0]) + " PRED_ANT_Y: " + str(self.pred_ant[1]))
-                    # if (((x+(w/2))-pred[0][0]) != self.pred_ant[0]) or (((y+(h/2))-pred[1][0]) != self.pred_ant[1]):
-                        # print("PRINTANDO O PATH")
                     self.pred_ant = self.path_publish((pred[0][0]/center_x,pred[1][0]/center_y))
-                    # self.pred_ant = self.path_publish((pred[0][0]/x,pred[1][0]/y))
-                        
-                    # print("BOUNDING BOX: X: " + str(x) + " | Y: " + str(y) + " | W: " + str(w) + " | H: " + str(h))
-                    # if len(c) > 1:
-                    #     self.alredy_detect = False
-                    
-                    # cv2.circle(print_frame, (int(pred[0]), int(pred[1])), 10, [0, 0, 255], 2, 8)
+
                     cv2.rectangle(print_frame, (int(pred[0]), int(pred[1])), (int(pred[0])+w, int(pred[1])+h), (255,0,0),2)
                 cv2.imshow("PRINT_FRAME", print_frame)
                 cv2.waitKey(1)
-            # else:
-            #     print(cv2.getWindowProperty("PRINT_FRAME", cv2.WND_PROP_VISIBLE))
-            #     if cv2.getWindowProperty("PRINT_FRAME", cv2.WND_PROP_VISIBLE) > 0:
-            #         print("WINDOW CLOSED!")
-            #         cv2.destroyWindow("PRINT_FRAME")
         else:
             print("@@@@@@@@@@@@@@@@current_frame IS EMPTY@@@@@@@@@@@@@@@@@@@@@@@@")
 
