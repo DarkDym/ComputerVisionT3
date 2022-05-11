@@ -1,8 +1,8 @@
 import rospy
 from geometry_msgs.msg import PoseWithCovarianceStamped
 
-I_POSE_H1 = [7.90, 0.00, 1.00]
-I_POSE_H2 = [8.89, 5.41, 1.00]
+I_POSE_H1 = [6.90, 0.00, 1.00]
+I_POSE_H2 = [9.90, 6.00, 1.00]
 
 class InitPose:
     def __init__(self):

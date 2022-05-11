@@ -26,6 +26,8 @@ import numpy as np
 import message_filters
 
 PATROL = [[13.00,-0.58],[16.41,-0.48],[15.64,4.72],[8.51,5.53],[5.10,0.00]]
+MOVEMENT_HUSKY2 = [[13.73,5.63],[10.09,5.73]]
+ROBOT_NAMESPACE2 = "/husky2"
 ROBOT_NAMESPACE = "/husky1"
 CONT_PATROL = 0
 PATROL_RESUME = 0
@@ -34,7 +36,10 @@ class TagRead:
     def __init__(self,robot_namespace,client):
         print("#####################################INITIALIZE SCRIPT#####################################")
         cont = CONT_PATROL
+        cont2 = 0
         rospy.init_node("listener_tag", anonymous=True)     
+
+        cv2.namedWindow("PRINT_FRAME", cv2.WINDOW_AUTOSIZE)
 
         rospy.Subscriber(str(robot_namespace)+"/tag_detections_image", Image, self.image_tag_callback)
         rospy.Subscriber(str(robot_namespace)+"/tag_detections", AprilTagDetectionArray, self.tag_callback)
@@ -66,10 +71,12 @@ class TagRead:
         self.h2_qw = 0.00
         self.pred_ant = (0,0)
         self.measured = np.array((2, 1), np.float32)
-        self.predicted = np.zeros((4, 1), np.float32)
-        self.kalman = cv2.KalmanFilter(4, 2)
+        self.predicted = np.zeros((2, 1), np.float32)
+        self.kalman = cv2.KalmanFilter(4, 2, 0)
         self.kalman_filter_predict()
         self.r = 10.0
+
+        # husky2_client = actionlib.SimpleActionClient(str(ROBOT_NAMESPACE2)+"/move_base",MoveBaseAction)
 
         while not rospy.is_shutdown():
             if not self.stopped:
@@ -84,6 +91,12 @@ class TagRead:
                     else:
                         cont += 1
                         pc_pub.publish(cont)
+            # result = self.goal_sending_object(ROBOT_NAMESPACE2,MOVEMENT_HUSKY2[cont2],husky2_client)
+            # if result:
+            #     if (cont2 >= len(MOVEMENT_HUSKY2)-1):
+            #         cont2 = 0
+            #     else:
+            #         cont2 += 1
         # rospy.spin()
     # def init_system(self,robot_namespace,client):
     
@@ -121,7 +134,7 @@ class TagRead:
             self.first_frame = None
             self.stopped = False
             CONT_PATROL = PATROL_RESUME
-            cv2.destroyAllWindows()
+            # cv2.destroyAllWindows()
 
     def goal_cancel(self):
         self.client.cancel_all_goals()
@@ -261,6 +274,24 @@ class TagRead:
                 return self.client.get_result()
         else:
             print("TAG DETECTED, WAITING ROBOT TO MOVE.")
+    def goal_sending_object(self,robot_namespace,goal_point,client):
+        print("#######SENDING GOAL")
+            
+        client.wait_for_server()
+
+        goal = MoveBaseGoal()
+        goal.target_pose.header.frame_id = "map"
+        goal.target_pose.header.stamp = rospy.Time.now()
+        goal.target_pose.pose.position.x = goal_point[0]
+        goal.target_pose.pose.position.y = goal_point[1]
+        goal.target_pose.pose.orientation.w = 1.0
+        client.send_goal(goal)
+        wait = client.wait_for_result()
+        if not wait:
+            rospy.logerr("Action server not available!")
+            rospy.signal_shutdown("Action server not available!")
+        else:
+            return client.get_result()
     
 
 
